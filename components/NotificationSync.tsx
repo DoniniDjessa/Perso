@@ -22,9 +22,13 @@ export function NotificationSync() {
     if (Platform.OS === 'web' || !user) return
     let active = true
     void (async () => {
-      const token = await persistPushToken(user, profile?.push_token)
-      if (!active || !token || token === profile?.push_token) return
-      await refreshProfile()
+      try {
+        const token = await persistPushToken(user, profile?.push_token)
+        if (!active || !token || token === profile?.push_token) return
+        await refreshProfile()
+      } catch {
+        // Push registration must never crash the app.
+      }
     })()
     return () => {
       active = false

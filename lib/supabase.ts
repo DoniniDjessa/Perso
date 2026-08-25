@@ -1,7 +1,9 @@
 import 'react-native-url-polyfill/auto'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
-import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/env'
+import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseConfigured } from '@/lib/env'
+
+export { isSupabaseConfigured }
 
 function createStorage() {
   if (Platform.OS === 'web') {
@@ -26,11 +28,17 @@ function createStorage() {
   }
 }
 
-export const supabase = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
-  auth: {
-    storage: createStorage(),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: Platform.OS === 'web',
-  },
-})
+function createSupabase(): SupabaseClient {
+  const url = getSupabaseUrl() || 'https://unavailable.supabase.co'
+  const key = getSupabaseAnonKey() || 'public-anon-key'
+  return createClient(url, key, {
+    auth: {
+      storage: createStorage(),
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: Platform.OS === 'web',
+    },
+  })
+}
+
+export const supabase = createSupabase()

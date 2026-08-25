@@ -23,19 +23,32 @@ function loadEnvLocal() {
   return out
 }
 
-const env = loadEnvLocal()
-if (env.NEXT_PUBLIC_SUPABASE_URL) {
-  process.env.EXPO_PUBLIC_SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL
-}
-if (env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const file = loadEnvLocal()
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  file.EXPO_PUBLIC_SUPABASE_URL ||
+  file.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  file.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+  file.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (supabaseUrl) process.env.EXPO_PUBLIC_SUPABASE_URL = supabaseUrl
+if (supabaseAnonKey) process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = supabaseAnonKey
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    '[perso] Missing Supabase env. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY on EAS (preview/production).'
+  )
 }
 
 module.exports = ({ config }) => ({
   ...config,
   extra: {
     ...config.extra,
-    supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseAnonKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl: supabaseUrl || undefined,
+    supabaseAnonKey: supabaseAnonKey || undefined,
   },
 })

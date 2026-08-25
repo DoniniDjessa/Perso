@@ -21,22 +21,26 @@ import {
 type ReminderKind = 'todo' | 'agenda' | 'credit'
 
 if (Platform.OS !== 'web') {
-  Notifications.setNotificationHandler({
-    handleNotification: async (notification) => {
-      const mode = String(notification.request.content.data?.mode ?? 'push')
-      const loud = mode === 'alert' || mode === 'both'
-      return {
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        priority: loud
-          ? Notifications.AndroidNotificationPriority.MAX
-          : Notifications.AndroidNotificationPriority.HIGH,
-      }
-    },
-  })
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async (notification) => {
+        const mode = String(notification.request.content.data?.mode ?? 'push')
+        const loud = mode === 'alert' || mode === 'both'
+        return {
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+          priority: loud
+            ? Notifications.AndroidNotificationPriority.MAX
+            : Notifications.AndroidNotificationPriority.HIGH,
+        }
+      },
+    })
+  } catch {
+    // Native notifications can fail in a release APK; never crash startup.
+  }
 }
 
 export const NOTIFY_OFFSETS = [
