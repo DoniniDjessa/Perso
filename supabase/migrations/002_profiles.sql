@@ -1,0 +1,3 @@
+-- Do not run this file.
+-- Profiles, RPCs, perso-bucket and image cleanup now live in 001_init.sql.
+-- The old public.profiles table belongs to another app (no "pseudo" column).

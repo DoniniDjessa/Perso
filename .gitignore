@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
+.env.local
+.env*.local
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -427,3 +429,19 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Expo
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+.metro-health-check*
+*.tsbuildinfo
+/ios
+/android
+.env*.local
+
+# Firebase admin / FCM service account — never ship in the client
+*-firebase-adminsdk-*.json

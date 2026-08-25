@@ -1,0 +1,107 @@
+{
+  "expo": {
+    "name": "Perso",
+    "slug": "perso",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "perso",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rixxelstudio.perso",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Perso a besoin d’accéder à ton répertoire pour assigner des personnes à tes TODOs, dépenses et événements.",
+        "NSLocationWhenInUseUsageDescription": "Perso a besoin de ta position pour l’enregistrer sur tes dépenses, événements et preuves, et ouvrir Google Maps.",
+        "UIBackgroundModes": ["remote-notification", "audio"]
+      }
+    },
+    "android": {
+      "package": "com.rixxelstudio.perso",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF",
+          "imageWidth": 220
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Perso a besoin d’accéder à tes photos et vidéos pour les joindre en version compressée."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#4F46E5",
+          "defaultChannel": "perso",
+          "enableBackgroundRemoteNotifications": true,
+          "sounds": [
+            "./assets/sounds/alarm.wav",
+            "./assets/sounds/chime.wav",
+            "./assets/sounds/urgent.wav"
+          ]
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Perso a besoin d’accéder à ton répertoire pour assigner des personnes à tes TODOs, dépenses et événements."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Perso a besoin de ta position pour l’enregistrer sur tes dépenses, événements et preuves, et ouvrir Google Maps."
+        }
+      ],
+      "expo-secure-store",
+      "expo-av",
+      "expo-document-picker",
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2cccc49e-388a-4728-904b-7ab3419fe7a2"
+      }
+    }
+  }
+}

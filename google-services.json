@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "406685285535",
+    "project_id": "perso-28759",
+    "storage_bucket": "perso-28759.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:406685285535:android:9294728f01aef53189b6aa",
+        "android_client_info": {
+          "package_name": "com.rixxelstudio.perso"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2iAq0m-y-X-EbRuigkGFs8Dddz3yXyJk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
