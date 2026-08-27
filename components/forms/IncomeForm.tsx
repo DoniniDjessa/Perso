@@ -10,10 +10,9 @@ import { persistItemImage } from '@/lib/compress'
 import { dateAndTimeFromIso } from '@/lib/format'
 import { errorMessage } from '@/lib/errors'
 import { asIncomeCategory, INCOME_CATEGORIES, type IncomeCategory } from '@/lib/categories'
-import { insertRow, peoplePayload, updateRow } from '@/lib/save'
+import { insertRow, peoplePayload, updateRow, deleteRow } from '@/lib/save'
 import { useItemImage } from '@/lib/useItemImage'
 import type { AssignedPerson, Income } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import { useState } from 'react'
 import { Text } from 'tamagui'
@@ -91,8 +90,7 @@ export function IncomeForm({
     if (!item) return
     setBusy(true)
     try {
-      const { error: err } = await supabase.from(tables.incomes).delete().eq('id', item.id)
-      if (err) throw err
+      await deleteRow(tables.incomes, item.id, [item.image_path])
       onSaved()
     } catch (e) {
       setError(errorMessage(e, 'Suppression impossible.'))

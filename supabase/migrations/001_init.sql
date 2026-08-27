@@ -84,6 +84,8 @@ alter table public."perso-profiles" add column if not exists push_token text;
 alter table public."perso-expenses" add column if not exists hidden boolean not null default false;
 alter table public."perso-profiles" add column if not exists hide_code_hash text;
 alter table public."perso-todos" add column if not exists reminder jsonb;
+alter table public."perso-todos" add column if not exists kind text not null default 'once';
+alter table public."perso-todos" add column if not exists habit jsonb;
 alter table public."perso-agenda-events" add column if not exists reminder jsonb;
 
 create unique index if not exists perso_profiles_pseudo_lower

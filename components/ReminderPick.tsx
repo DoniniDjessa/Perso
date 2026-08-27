@@ -3,6 +3,7 @@ import { dateAndTimeFromIso } from '@/lib/format'
 import {
   REMINDER_COUNTS,
   REMINDER_INTERVALS,
+  REMINDER_LEADS,
   REMINDER_MODES,
   REMINDER_SOUNDS,
   type ReminderConfig,
@@ -16,16 +17,23 @@ export function ReminderPick({
   value,
   onChange,
   variant = 'full',
+  timing = 'repeat',
   emptyStart = 'À la date de l’élément',
+  hideStart = false,
 }: {
   value: ReminderConfig
   onChange: (value: ReminderConfig) => void
   variant?: 'full' | 'push'
+  timing?: 'repeat' | 'before' | 'until-done'
   emptyStart?: string
+  hideStart?: boolean
 }) {
   const start = dateAndTimeFromIso(value.start_at)
   const pushOnly = variant === 'push'
   const showSound = !pushOnly && value.mode !== 'push'
+  const before = timing === 'before'
+  const untilDone = timing === 'until-done'
+  const leads = value.leads?.length ? value.leads : [30]
 
   return (
     <YStack gap={10}>
@@ -41,8 +49,12 @@ export function ReminderPick({
           <Text style={{ ...fonts.semibold, color: colors.black }}>Rappel</Text>
           <Text style={{ ...fonts.medium, fontSize: 12, color: colors.muted }}>
             {pushOnly
-              ? 'Notification push, une ou plusieurs fois.'
-              : 'Alerte réveil, notification, ou les deux.'}
+              ? 'Notification discrète en bandeau, en haut de l’écran.'
+              : before
+                ? 'Toujours avant l’heure exacte. Rien après.'
+                : untilDone
+                  ? 'Ça continue tant que ce n’est pas coché fait.'
+                  : 'Notification bandeau, ou alerte réveil (sonnerie + vibreur).'}
           </Text>
         </YStack>
         <Switch
@@ -79,48 +91,73 @@ export function ReminderPick({
               ))}
             </ChipGroup>
           ) : null}
-          <OptionalDateTime
-            date={start.date}
-            time={start.time}
-            onDate={(date) =>
-              onChange({ ...value, start_at: resolveOptionalAt(date, start.time)?.toISOString() ?? null })
-            }
-            onTime={(time) =>
-              onChange({ ...value, start_at: resolveOptionalAt(start.date, time)?.toISOString() ?? null })
-            }
-            dateLabel="PREMIER RAPPEL"
-            timeLabel="HEURE DU RAPPEL"
-            emptyDate={emptyStart}
-            emptyTime="Heure de l’élément"
-          />
-          <ChipGroup label="INTERVALLE">
-            {REMINDER_INTERVALS.map((item) => (
-              <Chip
-                key={item.value}
-                label={item.label}
-                active={value.interval_minutes === item.value}
-                onPress={() =>
-                  onChange({
-                    ...value,
-                    interval_minutes: item.value,
-                    count: item.value === 0 ? 1 : value.count,
-                  })
-                }
-              />
-            ))}
-          </ChipGroup>
-          {value.interval_minutes > 0 ? (
-            <ChipGroup label="NOMBRE DE FOIS">
-              {REMINDER_COUNTS.map((count) => (
-                <Chip
-                  key={count}
-                  label={String(count)}
-                  active={value.count === count}
-                  onPress={() => onChange({ ...value, count })}
-                />
-              ))}
+          {hideStart || before ? null : (
+            <OptionalDateTime
+              date={start.date}
+              time={start.time}
+              onDate={(date) =>
+                onChange({ ...value, start_at: resolveOptionalAt(date, start.time)?.toISOString() ?? null })
+              }
+              onTime={(time) =>
+                onChange({ ...value, start_at: resolveOptionalAt(start.date, time)?.toISOString() ?? null })
+              }
+              dateLabel="PREMIER RAPPEL"
+              timeLabel="HEURE DU RAPPEL"
+              emptyDate={emptyStart}
+              emptyTime="Heure de l’élément"
+            />
+          )}
+          {before ? (
+            <ChipGroup label="AVANT L’ÉVÉNEMENT">
+              {REMINDER_LEADS.map((item) => {
+                const active = leads.includes(item.value)
+                return (
+                  <Chip
+                    key={item.value}
+                    label={item.label}
+                    active={active}
+                    onPress={() => {
+                      const next = active
+                        ? leads.filter((lead) => lead !== item.value)
+                        : [...leads, item.value].sort((a, b) => a - b)
+                      onChange({ ...value, leads: next.length ? next : [item.value], interval_minutes: item.value })
+                    }}
+                  />
+                )
+              })}
             </ChipGroup>
-          ) : null}
+          ) : (
+            <>
+              <ChipGroup label={untilDone ? 'JUSQU’À CE QUE CE SOIT FAIT' : 'RELANCE'}>
+                {REMINDER_INTERVALS.map((item) => (
+                  <Chip
+                    key={item.value}
+                    label={item.label}
+                    active={value.interval_minutes === item.value}
+                    onPress={() =>
+                      onChange({
+                        ...value,
+                        interval_minutes: item.value,
+                        count: item.value === 0 ? 1 : value.count,
+                      })
+                    }
+                  />
+                ))}
+              </ChipGroup>
+              {!untilDone && value.interval_minutes > 0 ? (
+                <ChipGroup label="NOMBRE DE FOIS">
+                  {REMINDER_COUNTS.map((count) => (
+                    <Chip
+                      key={count}
+                      label={String(count)}
+                      active={value.count === count}
+                      onPress={() => onChange({ ...value, count })}
+                    />
+                  ))}
+                </ChipGroup>
+              ) : null}
+            </>
+          )}
         </>
       ) : null}
     </YStack>

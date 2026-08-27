@@ -92,6 +92,41 @@ export const SPEND_PERIOD_CAPTION: Record<SpendPeriod, string> = {
   year: 'Cette année',
 }
 
+export function shiftPeriodDate(date: Date, period: SpendPeriod, delta: number) {
+  const next = new Date(date)
+  if (period === 'day') next.setDate(next.getDate() + delta)
+  else if (period === 'week') next.setDate(next.getDate() + delta * 7)
+  else if (period === 'month') next.setMonth(next.getMonth() + delta)
+  else next.setFullYear(next.getFullYear() + delta)
+  return next
+}
+
+export function canShiftPeriodForward(date: Date, period: SpendPeriod) {
+  const next = shiftPeriodDate(date, period, 1)
+  return periodRange(period, next).start.getTime() <= Date.now()
+}
+
+export function formatPeriodCaption(period: SpendPeriod, date = new Date()) {
+  const now = new Date()
+  if (period === 'day') {
+    if (dateKey(date) === dateKey(now)) return "Aujourd'hui"
+    return date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  }
+  if (period === 'week') {
+    const { start, end } = periodRange('week', date)
+    if (dateKey(startOfWeek(now)) === dateKey(start)) return 'Cette semaine'
+    const from = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    const to = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    return `${from} – ${to}`
+  }
+  if (period === 'month') {
+    if (now.getFullYear() === date.getFullYear() && now.getMonth() === date.getMonth()) return 'Ce mois'
+    return formatMonthTitle(date)
+  }
+  if (now.getFullYear() === date.getFullYear()) return 'Cette année'
+  return String(date.getFullYear())
+}
+
 export function periodRange(period: SpendPeriod, date = new Date()) {
   if (period === 'day') return { start: startOfDay(date), end: endOfDay(date) }
   if (period === 'week') return { start: startOfWeek(date), end: endOfWeek(date) }

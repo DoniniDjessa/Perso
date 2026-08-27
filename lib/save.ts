@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { errorMessage, missingColumn } from '@/lib/errors'
+import { removeStoragePath } from '@/lib/compress'
 import type { AssignedPerson } from '@/lib/types'
 
 export function peoplePayload(people: AssignedPerson[] | null | undefined) {
@@ -56,4 +57,12 @@ export async function tryUpdateColumns(table: string, id: string, payload: Recor
     const { error } = await supabase.from(table).update({ [column]: value }).eq('id', id)
     if (error && !missingColumn(error.message)) throw new Error(errorMessage(error))
   }
+}
+
+export async function deleteRow(table: string, id: string, paths: (string | null | undefined)[] = []) {
+  for (const path of paths) {
+    await removeStoragePath(path)
+  }
+  const { error } = await supabase.from(table).delete().eq('id', id)
+  if (error) throw new Error(errorMessage(error, 'Suppression impossible.'))
 }

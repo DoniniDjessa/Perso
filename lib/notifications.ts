@@ -1,17 +1,28 @@
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
-import { Audio } from 'expo-av'
 import Constants from 'expo-constants'
-import { Platform } from 'react-native'
+import { AppState, Platform } from 'react-native'
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import { normalizePseudo } from '@/lib/pseudo'
 import type { AgendaEvent, Credit, Profile, Todo } from '@/lib/types'
 import {
+  expoWeekday,
+  habitSummary,
+  isDailyHabit,
+  isHabitDoneToday,
+  isHabitDueToday,
+  isHabitTodo,
+  nextHabitDates,
+  parseHabit,
+} from '@/lib/habit'
+import {
   parseReminder,
   reminderFireDates,
-  REMINDER_SOUND_ASSETS,
+  reminderFireDatesBefore,
+  reminderFireDatesUntilDone,
+  reminderOccurrences,
   REMINDER_SOUND_FILES,
   type ReminderConfig,
   type ReminderMode,
@@ -25,16 +36,25 @@ if (Platform.OS !== 'web') {
     Notifications.setNotificationHandler({
       handleNotification: async (notification) => {
         const mode = String(notification.request.content.data?.mode ?? 'push')
-        const loud = mode === 'alert' || mode === 'both'
+        const isAlert = mode === 'alert'
+        const foreground = AppState.currentState === 'active'
+        if (isAlert) {
+          return {
+            shouldShowAlert: !foreground,
+            shouldPlaySound: !foreground,
+            shouldSetBadge: false,
+            shouldShowBanner: !foreground,
+            shouldShowList: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          }
+        }
         return {
           shouldShowAlert: true,
           shouldPlaySound: true,
           shouldSetBadge: false,
           shouldShowBanner: true,
           shouldShowList: true,
-          priority: loud
-            ? Notifications.AndroidNotificationPriority.MAX
-            : Notifications.AndroidNotificationPriority.HIGH,
+          priority: Notifications.AndroidNotificationPriority.DEFAULT,
         }
       },
     })
@@ -49,9 +69,10 @@ export const NOTIFY_OFFSETS = [
   { label: '30 min avant', value: 30 },
   { label: '1 h avant', value: 60 },
   { label: '1 jour avant', value: 1440 },
+  { label: '2 jours avant', value: 2880 },
+  { label: '3 jours avant', value: 4320 },
+  { label: '1 semaine avant', value: 10080 },
 ] as const
-
-let alarmSound: Audio.Sound | null = null
 
 function itemPrefix(kind: ReminderKind, id: string) {
   return `perso-${kind}-${id}`
@@ -80,7 +101,7 @@ async function ensureAndroidChannels() {
       id: 'perso-push',
       name: 'Notifications',
       importance: Notifications.AndroidImportance.DEFAULT,
-      vibrationPattern: [0, 180],
+      vibrationPattern: [0, 120],
     },
     {
       id: 'perso-alert-default',
@@ -98,7 +119,7 @@ async function ensureAndroidChannels() {
     {
       id: 'perso-alert-chime',
       name: 'Alerte carillon',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: Notifications.AndroidImportance.MAX,
       sound: REMINDER_SOUND_FILES.chime,
       vibrationPattern: [0, 220, 120, 220],
     },
@@ -111,15 +132,26 @@ async function ensureAndroidChannels() {
     },
   ]
   for (const channel of channels) {
+    const isAlert = channel.id.startsWith('perso-alert')
     await Notifications.setNotificationChannelAsync(channel.id, {
       name: channel.name,
       importance: channel.importance,
       vibrationPattern: channel.vibrationPattern,
       lightColor: '#4F46E5',
       sound: channel.sound ?? 'default',
-      enableVibrate: true,
+      enableVibrate: isAlert,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    })
+      ...(isAlert
+        ? {
+            bypassDnd: true,
+            audioAttributes: {
+              usage: Notifications.AndroidAudioUsage.ALARM,
+              contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+              flags: { enforceAudibility: true, requestHardwareAudioVideoSynchronization: false },
+            },
+          }
+        : {}),
+    } as Notifications.NotificationChannelInput)
   }
 }
 
@@ -221,31 +253,64 @@ function contentSound(mode: ReminderMode, sound: ReminderSound) {
   return REMINDER_SOUND_FILES[sound]
 }
 
+type Trigger =
+  | { type: 'date'; date: Date }
+  | { type: 'daily'; hour: number; minute: number }
+  | { type: 'weekly'; weekday: number; hour: number; minute: number }
+
 async function scheduleAt(
   identifier: string,
   title: string,
   body: string,
-  when: Date,
+  trigger: Trigger,
   data: { kind: ReminderKind; id: string; mode: ReminderMode; sound: ReminderSound },
   channelId: string
 ) {
-  if (when.getTime() <= Date.now() + 5000) return
+  if (trigger.type === 'date' && trigger.date.getTime() <= Date.now() + 5000) return
+  const isAlert = data.mode === 'alert'
   await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => undefined)
-  await Notifications.scheduleNotificationAsync({
+  const nativeTrigger =
+    trigger.type === 'daily'
+      ? {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: trigger.hour,
+          minute: trigger.minute,
+          channelId,
+        }
+      : trigger.type === 'weekly'
+        ? {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday: trigger.weekday,
+            hour: trigger.hour,
+            minute: trigger.minute,
+            channelId,
+          }
+        : {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: trigger.date,
+            channelId,
+          }
+  try {
+    await Notifications.scheduleNotificationAsync({
     identifier,
     content: {
       title,
       body,
       sound: contentSound(data.mode, data.sound),
-      interruptionLevel: data.mode === 'push' ? 'active' : 'timeSensitive',
-      data,
+      interruptionLevel: isAlert ? 'timeSensitive' : 'active',
+      sticky: isAlert,
+      autoDismiss: !isAlert,
+      priority: isAlert
+        ? Notifications.AndroidNotificationPriority.MAX
+        : Notifications.AndroidNotificationPriority.DEFAULT,
+      vibrate: isAlert ? [0, 900, 400, 900, 400, 1200] : [0, 120],
+      data: { ...data, alarmTitle: title, alarmBody: body, identifier },
     },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: when,
-      channelId,
-    },
+    trigger: nativeTrigger,
   })
+  } catch (e) {
+    console.log('[Perso] Planification rappel impossible:', e instanceof Error ? e.message : e)
+  }
 }
 
 async function scheduleOccurrence(
@@ -253,11 +318,12 @@ async function scheduleOccurrence(
   id: string,
   title: string,
   body: string,
-  when: Date,
-  index: number,
+  trigger: Trigger | Date,
+  index: string | number,
   config: ReminderConfig
 ) {
   const prefix = itemPrefix(kind, id)
+  const when = trigger instanceof Date ? { type: 'date' as const, date: trigger } : trigger
   const data = { kind, id, mode: config.mode, sound: config.sound }
   if (config.mode === 'push' || config.mode === 'both') {
     await scheduleAt(`${prefix}-p${index}`, title, body, when, { ...data, mode: 'push' }, 'perso-push')
@@ -265,13 +331,118 @@ async function scheduleOccurrence(
   if (config.mode === 'alert' || config.mode === 'both') {
     await scheduleAt(
       `${prefix}-a${index}`,
-      config.mode === 'both' ? `Alerte · ${title}` : title,
+      title,
       body,
       when,
       { ...data, mode: 'alert' },
       alertChannel(config.sound)
     )
   }
+}
+
+function scheduleReminderDates(
+  kind: ReminderKind,
+  id: string,
+  title: string,
+  body: string,
+  dates: Date[],
+  config: ReminderConfig,
+  jobs: (() => Promise<void>)[]
+) {
+  dates.forEach((when, index) => {
+    jobs.push(() => scheduleOccurrence(kind, id, title, body, when, index, config))
+  })
+}
+
+function habitTimeOn(habit: NonNullable<ReturnType<typeof parseHabit>>, date = new Date()) {
+  const when = new Date(date)
+  when.setHours(habit.hour, habit.minute, 0, 0)
+  return when
+}
+
+function scheduleHabitUntilDone(
+  todo: Todo,
+  habit: NonNullable<ReturnType<typeof parseHabit>>,
+  reminder: ReminderConfig,
+  jobs: (() => Promise<void>)[]
+) {
+  if (isHabitDoneToday(habit) || !isHabitDueToday(habit)) return
+  const todayAt = habitTimeOn(habit)
+  const nag: ReminderConfig = {
+    ...reminder,
+    interval_minutes: reminder.interval_minutes > 0 ? reminder.interval_minutes : 60,
+  }
+  const dates = reminderFireDatesUntilDone(nag, todayAt).filter(
+    (when) => when.getTime() !== todayAt.getTime()
+  )
+  dates.forEach((when, index) => {
+    jobs.push(() =>
+      scheduleOccurrence('todo', todo.id, todo.title, habitSummary(habit), when, `n${index}`, reminder)
+    )
+  })
+}
+
+function scheduleHabitReminder(
+  todo: Todo,
+  habit: NonNullable<ReturnType<typeof parseHabit>>,
+  reminder: ReminderConfig,
+  jobs: (() => Promise<void>)[]
+) {
+  if (reminder.interval_minutes > 0) {
+    scheduleReminderDates(
+      'todo',
+      todo.id,
+      todo.title,
+      habitSummary(habit),
+      reminderOccurrences(reminder, nextHabitDates(habit, 10)),
+      reminder,
+      jobs
+    )
+    scheduleHabitUntilDone(todo, habit, reminder, jobs)
+    return
+  }
+  if (isDailyHabit(habit)) {
+    jobs.push(() =>
+      scheduleOccurrence(
+        'todo',
+        todo.id,
+        todo.title,
+        habitSummary(habit),
+        { type: 'daily', hour: habit.hour, minute: habit.minute },
+        'd',
+        reminder
+      )
+    )
+    scheduleHabitUntilDone(todo, habit, reminder, jobs)
+    return
+  }
+  if (habit.every === 'weekly') {
+    for (const day of habit.days) {
+      jobs.push(() =>
+        scheduleOccurrence(
+          'todo',
+          todo.id,
+          todo.title,
+          habitSummary(habit),
+          { type: 'weekly', weekday: expoWeekday(day), hour: habit.hour, minute: habit.minute },
+          `w${day}`,
+          reminder
+        )
+      )
+    }
+    scheduleHabitUntilDone(todo, habit, reminder, jobs)
+    return
+  }
+  scheduleReminderDates(
+    'todo',
+    todo.id,
+    todo.title,
+    habitSummary(habit),
+    nextHabitDates(habit, 16),
+    reminder,
+    jobs
+  )
+  scheduleHabitUntilDone(todo, habit, reminder, jobs)
 }
 
 export async function cancelItemNotification(kind: ReminderKind, id: string) {
@@ -297,46 +468,6 @@ export function notificationTarget(data: Record<string, unknown> | undefined | n
   return null
 }
 
-export async function stopReminderAlarm() {
-  if (!alarmSound) return
-  try {
-    await alarmSound.stopAsync()
-    await alarmSound.unloadAsync()
-  } catch {
-    // already released
-  }
-  alarmSound = null
-}
-
-export async function startReminderAlarm(sound: ReminderSound = 'alarm') {
-  if (Platform.OS === 'web') return
-  await stopReminderAlarm()
-  try {
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: false,
-    })
-    const { sound: player } = await Audio.Sound.createAsync(REMINDER_SOUND_ASSETS[sound], {
-      isLooping: true,
-      volume: 1,
-      shouldPlay: true,
-    })
-    alarmSound = player
-  } catch (e) {
-    console.log('[Perso] Alerte sonore impossible:', e instanceof Error ? e.message : e)
-  }
-}
-
-export async function handleReminderReceived(data: Record<string, unknown> | undefined | null) {
-  const mode = data?.mode
-  if (mode !== 'alert' && mode !== 'both') return
-  const sound = typeof data?.sound === 'string' ? data.sound : 'alarm'
-  await startReminderAlarm(
-    sound === 'chime' || sound === 'urgent' || sound === 'default' ? sound : 'alarm'
-  )
-}
-
 export async function syncNotifications(
   todos: Todo[],
   events: AgendaEvent[],
@@ -357,57 +488,76 @@ export async function syncNotifications(
 
   const todoMinutes = profile?.notify_todo_minutes ?? 60
   const agendaMinutes = profile?.notify_agenda_minutes ?? 30
-
   const jobs: (() => Promise<void>)[] = []
 
   if (profile?.notify_todos !== false) {
-    for (const todo of todos.filter((item) => !item.done)) {
+    for (const todo of todos) {
+      const habit = parseHabit(todo.habit)
+      if (habit && isHabitTodo(todo)) {
+        const reminder = parseReminder(todo.reminder, 'both')
+        if (!reminder.enabled) continue
+        scheduleHabitReminder(todo, habit, reminder, jobs)
+        continue
+      }
+      if (todo.done) continue
       const custom = todo.reminder
       if (custom) {
         const reminder = parseReminder(custom, 'both')
         if (!reminder.enabled) continue
-        const dates = reminderFireDates(
+        scheduleReminderDates(
+          'todo',
+          todo.id,
+          'TODO',
+          todo.title,
+          reminderFireDatesUntilDone(reminder, todo.due_at ? new Date(todo.due_at) : null),
           reminder,
-          todo.due_at ? new Date(todo.due_at) : null
+          jobs
         )
-        dates.forEach((when, index) => {
-          jobs.push(() =>
-            scheduleOccurrence('todo', todo.id, 'TODO', todo.title, when, index, reminder)
-          )
-        })
         continue
       }
       if (!todo.due_at) continue
       const when = new Date(new Date(todo.due_at).getTime() - todoMinutes * 60_000)
-      jobs.push(() =>
-        scheduleOccurrence('todo', todo.id, 'TODO', todo.title, when, 0, {
-          enabled: true,
-          mode: 'push',
-          sound: 'default',
-          start_at: when.toISOString(),
-          interval_minutes: 0,
-          count: 1,
-        })
+      const fallback: ReminderConfig = {
+        enabled: true,
+        mode: 'push',
+        sound: 'default',
+        start_at: when.toISOString(),
+        interval_minutes: 60,
+        count: 1,
+      }
+      scheduleReminderDates(
+        'todo',
+        todo.id,
+        'TODO',
+        todo.title,
+        reminderFireDatesUntilDone(fallback, new Date(todo.due_at)),
+        fallback,
+        jobs
       )
     }
   }
 
   if (profile?.notify_agenda !== false) {
     for (const event of events) {
+      const startsAt = new Date(event.starts_at)
+      if (startsAt.getTime() <= Date.now()) continue
       const custom = event.reminder
       if (custom) {
         const reminder = parseReminder(custom, 'both')
         if (!reminder.enabled) continue
-        const dates = reminderFireDates(reminder, new Date(event.starts_at))
-        dates.forEach((when, index) => {
-          jobs.push(() =>
-            scheduleOccurrence('agenda', event.id, 'Agenda', event.title, when, index, reminder)
-          )
-        })
+        scheduleReminderDates(
+          'agenda',
+          event.id,
+          'Agenda',
+          event.title,
+          reminderFireDatesBefore(reminder, startsAt),
+          reminder,
+          jobs
+        )
         continue
       }
-      if (new Date(event.starts_at).getTime() <= Date.now()) continue
-      const when = new Date(new Date(event.starts_at).getTime() - agendaMinutes * 60_000)
+      const when = new Date(startsAt.getTime() - agendaMinutes * 60_000)
+      if (when.getTime() >= startsAt.getTime()) continue
       jobs.push(() =>
         scheduleOccurrence('agenda', event.id, 'Agenda', event.title, when, 0, {
           enabled: true,
@@ -424,15 +574,15 @@ export async function syncNotifications(
   for (const credit of credits.filter((item) => !item.repaid)) {
     const reminder = parseReminder(credit.reminder, 'push')
     if (!reminder.enabled) continue
-    const dates = reminderFireDates(reminder, credit.due_at ? new Date(credit.due_at) : null)
-    dates.forEach((when, index) => {
-      jobs.push(() =>
-        scheduleOccurrence('credit', credit.id, 'Crédit', credit.label, when, index, {
-          ...reminder,
-          mode: 'push',
-        })
-      )
-    })
+    scheduleReminderDates(
+      'credit',
+      credit.id,
+      'Crédit',
+      credit.label,
+      reminderFireDates(reminder, credit.due_at ? new Date(credit.due_at) : null),
+      { ...reminder, mode: 'push' },
+      jobs
+    )
   }
 
   if (!jobs.length) return

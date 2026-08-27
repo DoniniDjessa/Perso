@@ -11,11 +11,10 @@ import { persistItemImage } from '@/lib/compress'
 import { dateAndTimeFromIso } from '@/lib/format'
 import { errorMessage } from '@/lib/errors'
 import { asCreditDirection, type CreditDirection } from '@/lib/categories'
-import { insertRow, peoplePayload, updateRow } from '@/lib/save'
+import { insertRow, peoplePayload, updateRow, deleteRow } from '@/lib/save'
 import { useItemImage } from '@/lib/useItemImage'
 import { parseReminder, reminderPayload } from '@/lib/reminder'
 import type { AssignedPerson, Credit } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import { cancelItemNotification } from '@/lib/notifications'
 import { useState } from 'react'
@@ -110,8 +109,7 @@ export function CreditForm({
     setBusy(true)
     try {
       await cancelItemNotification('credit', item.id)
-      const { error: err } = await supabase.from(tables.credits).delete().eq('id', item.id)
-      if (err) throw err
+      await deleteRow(tables.credits, item.id, [item.image_path])
       onSaved()
     } catch (e) {
       setError(errorMessage(e, 'Suppression impossible.'))

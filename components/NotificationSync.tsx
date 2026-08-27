@@ -1,14 +1,6 @@
 import { useAgenda, useCredits, useTodos } from '@/lib/hooks'
 import { useAuth } from '@/lib/auth'
-import {
-  handleReminderReceived,
-  notificationTarget,
-  persistPushToken,
-  stopReminderAlarm,
-  syncNotifications,
-} from '@/lib/notifications'
-import * as Notifications from 'expo-notifications'
-import { router } from 'expo-router'
+import { persistPushToken, syncNotifications } from '@/lib/notifications'
 import { useEffect } from 'react'
 import { Platform } from 'react-native'
 
@@ -48,22 +40,6 @@ export function NotificationSync() {
     todos.items,
     todos.loading,
   ])
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return
-    const received = Notifications.addNotificationReceivedListener((notification) => {
-      void handleReminderReceived(notification.request.content.data)
-    })
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      void stopReminderAlarm()
-      const href = notificationTarget(response.notification.request.content.data)
-      if (href) router.push(href)
-    })
-    return () => {
-      received.remove()
-      sub.remove()
-    }
-  }, [])
 
   return null
 }

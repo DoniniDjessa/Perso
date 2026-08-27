@@ -1,3 +1,4 @@
+import type { HabitConfig } from './habit'
 import type { ReminderConfig } from './reminder'
 
 export type AssignedPerson = {
@@ -22,6 +23,8 @@ export type Expense = {
   hidden?: boolean
 }
 
+export type TodoKind = 'once' | 'habit'
+
 export type Todo = {
   id: string
   user_id: string
@@ -32,6 +35,8 @@ export type Todo = {
   people: AssignedPerson[]
   created_at: string
   reminder?: ReminderConfig | null
+  kind?: TodoKind
+  habit?: HabitConfig | null
 }
 
 export type AgendaEvent = {

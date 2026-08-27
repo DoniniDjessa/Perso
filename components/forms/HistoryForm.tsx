@@ -13,10 +13,9 @@ import { persistItemFile, persistItemImage } from '@/lib/compress'
 import { dateAndTimeFromIso } from '@/lib/format'
 import { errorMessage } from '@/lib/errors'
 import { asLinkList, normalizeLinks } from '@/lib/links'
-import { insertRow, peoplePayload, updateRow } from '@/lib/save'
+import { insertRow, peoplePayload, updateRow, deleteRow } from '@/lib/save'
 import { useItemImage } from '@/lib/useItemImage'
 import { useItemMedia } from '@/lib/useItemMedia'
-import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import type { AssignedPerson, HistoryProof } from '@/lib/types'
 import { useState } from 'react'
@@ -137,8 +136,7 @@ export function HistoryForm({
     if (!item) return
     setBusy(true)
     try {
-      const { error: err } = await supabase.from(tables.history).delete().eq('id', item.id)
-      if (err) throw err
+      await deleteRow(tables.history, item.id, [item.image_path, item.audio_path, item.video_path])
       onSaved()
     } catch (e) {
       setError(errorMessage(e, 'Suppression impossible.'))

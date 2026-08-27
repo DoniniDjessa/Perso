@@ -10,6 +10,7 @@ import { colors, fonts } from '@/lib/theme'
 import { formatDay, formatTime, isInPeriod, SPEND_PERIOD_CAPTION, type SpendPeriod } from '@/lib/format'
 import { mapPointFrom } from '@/lib/maps'
 import { priorityLabel } from '@/lib/priority'
+import { isTodoOpen } from '@/lib/habit'
 import { useAgenda, useExpenses, useTodos } from '@/lib/hooks'
 import type { AgendaEvent } from '@/lib/types'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -34,7 +35,7 @@ export default function HomeScreen() {
     (expenses.loading && expenses.items.length === 0) ||
     (todos.loading && todos.items.length === 0) ||
     (agenda.loading && agenda.items.length === 0)
-  const openTodos = todos.items.filter((t) => !t.done)
+  const openTodos = todos.items.filter((t) => isTodoOpen(t))
 
   const { important, nearest } = useMemo(() => pickAgendaHighlights(agenda.items), [agenda.items])
 

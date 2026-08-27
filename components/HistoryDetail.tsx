@@ -6,9 +6,9 @@ import { signedImageUrl } from '@/lib/compress'
 import { formatDay, formatTime } from '@/lib/format'
 import { asLinkList } from '@/lib/links'
 import { mapPointFrom } from '@/lib/maps'
+import { deleteRow } from '@/lib/save'
 import { errorMessage } from '@/lib/errors'
 import { colors, fonts } from '@/lib/theme'
-import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import type { HistoryProof } from '@/lib/types'
 import { Image as ExpoImage } from 'expo-image'
@@ -63,13 +63,14 @@ export function HistoryDetail({
         onPress: () => {
           void (async () => {
             setBusy(true)
-            const { error: err } = await supabase.from(tables.history).delete().eq('id', item.id)
-            setBusy(false)
-            if (err) {
-              setError(errorMessage(err, 'Suppression impossible.'))
-              return
+            try {
+              await deleteRow(tables.history, item.id, [item.image_path, item.audio_path, item.video_path])
+              onDeleted()
+            } catch (e) {
+              setError(errorMessage(e, 'Suppression impossible.'))
+            } finally {
+              setBusy(false)
             }
-            onDeleted()
           })()
         },
       },

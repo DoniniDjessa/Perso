@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import type { AgendaEvent, AssignedPerson, Credit, Expense, HistoryProof, Income, Todo } from '@/lib/types'
 import { useAuth } from '@/lib/auth'
+import { isHabitTodo, parseHabit } from '@/lib/habit'
 import { useFormNonce } from '@/components/FormDrawer'
 import { priorityFromEvent } from '@/lib/priority'
 
@@ -144,7 +145,16 @@ export function useTodos() {
     if (err) setError(err.message)
     else {
       setError(null)
-      setItems(withPeople(data as Todo[]))
+      setItems(
+        withPeople(data as Todo[]).map((row) => {
+          const habit = parseHabit(row.habit)
+          return {
+            ...row,
+            habit,
+            kind: row.kind === 'habit' || habit ? 'habit' : 'once',
+          }
+        })
+      )
     }
     setLoading(false)
   }, [user])

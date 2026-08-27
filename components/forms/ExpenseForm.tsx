@@ -12,11 +12,10 @@ import { persistItemImage } from '@/lib/compress'
 import { dateAndTimeFromIso } from '@/lib/format'
 import { errorMessage } from '@/lib/errors'
 import { asExpenseCategory, EXPENSE_CATEGORIES, type ExpenseCategory } from '@/lib/categories'
-import { insertRow, peoplePayload, updateRow } from '@/lib/save'
+import { insertRow, peoplePayload, updateRow, deleteRow } from '@/lib/save'
 import { useItemImage } from '@/lib/useItemImage'
 import { useHideLock } from '@/lib/hideLock'
 import type { AssignedPerson, Expense } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import { useState } from 'react'
 import { Switch } from 'react-native'
@@ -102,8 +101,7 @@ export function ExpenseForm({
     if (!item) return
     setBusy(true)
     try {
-      const { error: err } = await supabase.from(tables.expenses).delete().eq('id', item.id)
-      if (err) throw err
+      await deleteRow(tables.expenses, item.id, [item.image_path])
       onSaved()
     } catch (e) {
       setError(errorMessage(e, 'Suppression impossible.'))

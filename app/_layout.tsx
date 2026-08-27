@@ -16,6 +16,7 @@ import {
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans'
 import { AuthProvider, useAuth } from '@/lib/auth'
+import { AlarmProvider } from '@/lib/alarm'
 import { isSupabaseConfigured } from '@/lib/env'
 import tamaguiConfig from '@/tamagui.config'
 import { colors } from '@/lib/theme'
@@ -66,10 +67,12 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
         <AuthProvider>
-          <ThemeProvider value={navTheme}>
-            <StatusBar style="dark" />
-            <RootNav />
-          </ThemeProvider>
+          <AlarmProvider>
+            <ThemeProvider value={navTheme}>
+              <StatusBar style="dark" />
+              <RootNav />
+            </ThemeProvider>
+          </AlarmProvider>
         </AuthProvider>
       </TamaguiProvider>
     </GestureHandlerRootView>

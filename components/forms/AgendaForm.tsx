@@ -12,10 +12,9 @@ import { useAuth } from '@/lib/auth'
 import { persistItemImage } from '@/lib/compress'
 import { dateAndTimeFromIso } from '@/lib/format'
 import { errorMessage } from '@/lib/errors'
-import { insertRow, peoplePayload, tryUpdateColumns, updateRow } from '@/lib/save'
+import { insertRow, peoplePayload, tryUpdateColumns, updateRow, deleteRow } from '@/lib/save'
 import { useItemImage } from '@/lib/useItemImage'
 import { parseReminder, reminderPayload } from '@/lib/reminder'
-import { supabase } from '@/lib/supabase'
 import { tables } from '@/lib/db'
 import { cancelItemNotification } from '@/lib/notifications'
 import type { AssignedPerson, AgendaEvent } from '@/lib/types'
@@ -110,8 +109,7 @@ export function AgendaForm({
     setBusy(true)
     try {
       await cancelItemNotification('agenda', item.id)
-      const { error: err } = await supabase.from(tables.agenda).delete().eq('id', item.id)
-      if (err) throw err
+      await deleteRow(tables.agenda, item.id, [item.image_path])
       onSaved()
     } catch (e) {
       setError(errorMessage(e, 'Suppression impossible.'))
@@ -146,6 +144,8 @@ export function AgendaForm({
       <ReminderPick
         value={reminder}
         onChange={setReminder}
+        timing="before"
+        hideStart
         emptyStart="À l’heure de l’événement"
       />
       <PlaceAttach point={mapPoint} onChange={setMapPoint} />
